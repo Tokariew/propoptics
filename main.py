@@ -2,11 +2,9 @@ from kivy.app import App
 from kivy.uix.floatlayout import FloatLayout
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
-from kivy.uix.popup import Popup
 from kivy.uix.widget import Widget
 from kivy.uix.slider import Slider
 from kivy.uix.popup import Popup
-from kivy.uix.progressbar import ProgressBar
 from kivy.app import App
 import threading
 from functools import partial
@@ -16,21 +14,26 @@ import os
 import math
 from image_widget import ImDisplay
 from matplotlib import cm
+from kivy.config import Config
+Config.set('graphics', 'width', '800')
+Config.set('graphics', 'height', '600')
+Config.set('graphics','resizable',0)
 
-#todo check if correct file is selected, if not display nice popup
+# todo settings or something else to give lambde, n0 i dx, może zakres propagacji, kroki?
+# todo check if correct file is selected, if not display popup
+# todo change filechooser to filebrowser from garden otherwise we can't access other devices
 cmap = cm.gray(np.arange(256))
 cmap = cmap[:, 0:3]
 cmap = cmap.ravel()
 cmap = (255 * cmap).astype(np.int32)
-img = np.random.rand(1024,1024)
+img = np.random.rand(1024, 1024)
 lam = .6328
 n0 = 1.333
 dx = 3.45 / 30.5
-Nx = 2048
-Ny = 2048
-z_vec = list(range(-30,31,5))
+z_vec = list(range(-30, 31, 5))
+
+
 def propagate2d(ui, z, lam, n0, dx):
-    global up
     k = 2 * math.pi / lam
     Ny, Nx = ui.shape
     dfx = 1 / Nx / dx
@@ -58,9 +61,14 @@ def propagate2d(ui, z, lam, n0, dx):
         uo = fftpack.ifft2(fftpack.ifftshift(ftu))
     return uo
 
+
 class LoadDialog(FloatLayout):
     load = ObjectProperty(None)
     cancel = ObjectProperty(None)
+
+
+class PopupBox(Popup):
+    pass
 
 
 class SpecSlider(Slider):
@@ -72,6 +80,7 @@ class SpecSlider(Slider):
         root = app.root
         ampli = root.ids.amplitude_button.state
         root.update_image(self.value, ampli)
+
 
 class MainWidget(Widget):
     def __init__(self, **kwargs):
@@ -95,14 +104,17 @@ class MainWidget(Widget):
                             size_hint=(0.9, 0.9))
         self._popup.open()
 
+    def show_loading(self):
+        self._content = PopupBox()
+        self._content.open()
+        self.pb = self._content.ids.loading_progress
+
     def load(self, path, filename):
         file2open = os.path.join(path, filename[0])
         tmp = io.loadmat(file2open)
         ui = tmp['u']
         self.dismiss_popup()
-        self.pb = ProgressBar(max=13, height=40)
-        self.popup = Popup(title='Calculating', content =self.pb, size_hint=(None, None), size=(400, 400), auto_dismiss=False)
-        self.popup.open()
+        self.show_loading()
         mythread = threading.Thread(target=partial(self.propagate_all, ui))
         mythread.start()
 
@@ -110,7 +122,6 @@ class MainWidget(Widget):
         size = list(ui.shape)
         size.append(1)
         self.up1 = np.empty(size)
-        #popup.open()
         for i in range(-30, 31, 5):
             self.up1 = np.dstack((self.up1, propagate2d(ui, i, lam, n0, dx)))
             print('calculated: {}'.format(i))
@@ -118,16 +129,17 @@ class MainWidget(Widget):
         self.up1 = np.delete(self.up1, 0, axis=2)
         self.ids.position_slider.disabled = False
         self.ids.phase_button.disabled = False
-        self.ids.amplitude_button.disabled = False
+        self._content.dismiss()
         self.update_image(self.ids.position_slider.value, self.ids.amplitude_button.state)
-        self.popup.dismiss()
+        self.ids.amplitude_button.disabled = False
 
     def update_image(self, value, state):
         i = z_vec.index(value)
         if state == 'down':
-            self.wrong.create_im(np.abs(self.up1[:,:,i]),cmap)
+            self.wrong.create_im(np.abs(self.up1[:, :, i]), cmap)
         else:
             self.wrong.create_im(np.angle(self.up1[:, :, i]), cmap)
+
 
 class PropagateApp(App):
     def build(self):
@@ -140,3 +152,6 @@ Factory.register('LoadDialog', cls=LoadDialog)
 
 if __name__ == '__main__':
     PropagateApp().run()
+
+
+#https://www.youtube.com/watch?v=VBokjWj_cEA

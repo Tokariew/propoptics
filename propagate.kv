@@ -6,16 +6,19 @@
         size: Win.size
         id: mainbox
         orientation: 'vertical'
-
         Button:
             text: 'Load File'
-            height: 40
+            size_hint_x: .35
             size_hint_y: None
+            height: '36dp'
+            pos_hint: {'center_x': 0.5, 'y': 0.5}
             on_release: root.show_load()
 
         GridLayout:
+            height: '36dp'
+            spacing: '8dp'
             cols: 2
-            height: 40
+            height: '36dp'
             size_hint_y: None
 
             Label:
@@ -35,23 +38,30 @@
                 disabled: True
                 on_value: current_slider_value.text = str(position_slider.value)
 
-        GridLayout:
-            cols: 2
-            height: 40
+        FloatLayout:
+            spacing: '8dp'
+            #cols: 2
+            #orientation: 'horizontal'
+            height: '36dp'
             size_hint_y: None
-
             ToggleButton:
                 id: phase_button
+                size_hint_x: .35
+                pos_hint: {'center_x': 0.25, 'top': 1}
                 text: 'Phase'
                 group: 'display'
                 disabled: True
+                on_release: amplitude_button.state = 'normal' if phase_button.state == 'down' else 'down'
 
             ToggleButton:
                 id: amplitude_button
+                size_hint_x: .35
+                pos_hint: {'center_x': 0.75, 'top': 1}
                 text: 'Amplitude'
                 group: 'display'
                 state: 'down'
                 disabled: True
+                on_release: phase_button.state = 'down' if amplitude_button.state == 'normal' else 'normal'
                 on_state: root.update_image(position_slider.value, amplitude_button.state)
 
 <LoadDialog>:
@@ -75,13 +85,18 @@
                 on_release: root.load(filechooser.path, filechooser.selection)
 
 <PopupBox>:
-    pop_up_text: _pop_up_text
-    size_hint: .5, .5
-    auto_dismiss: True
-    title: 'Status'
-
+    id: loading_popup
+    title: 'Calculating'
+    size_hint: (None, None)
+    size: Win.width / 2, Win.height / 2
+    auto_dismiss: False
     BoxLayout:
-        orientation: "vertical"
+        orientation: 'vertical'
         Label:
-            id: _pop_up_text
-            text: ''
+            id: loading_label
+            text: '0%'
+        ProgressBar:
+            id: loading_progress
+            max: 13
+            height: 40
+            on_value: loading_label.text = '{:.2f}%'.format(loading_progress.value / loading_progress.max * 100)
