@@ -1,0 +1,76 @@
+#:kivy 1.1.0
+#:import Win kivy.core.window.Window
+
+<MainWidget>:
+    BoxLayout:
+        size: Win.size
+        id: mainbox
+        orientation: 'vertical'
+
+        Button:
+            text: 'Load File'
+            height: 40
+            size_hint_y: None
+            on_release: root.show_load()
+
+        GridLayout:
+            cols: 2
+            height: 40
+            size_hint_y: None
+
+            Label:
+                id: current_slider_value
+                text: '0'
+
+            #Label:
+            #    id: state_label
+            #    text: 'test'
+
+            SpecSlider:
+                id: position_slider
+                min: -30
+                max: 30
+                orientation: 'horizontal'
+                step: 5
+                disabled: True
+                on_value: current_slider_value.text = str(position_slider.value)
+
+        GridLayout:
+            cols: 2
+            height: 40
+            size_hint_y: None
+
+            ToggleButton:
+                id: phase_button
+                text: 'Phase'
+                group: 'display'
+                disabled: True
+
+            ToggleButton:
+                id: amplitude_button
+                text: 'Amplitude'
+                group: 'display'
+                state: 'down'
+                disabled: True
+                on_state: root.update_image(position_slider.value, amplitude_button.state)
+
+<LoadDialog>:
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+
+        FileChooserIconView:
+            id: filechooser
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.cancel()
+
+            Button:
+                text: "Load"
+                on_release: root.load(filechooser.path, filechooser.selection)
+
