@@ -74,3 +74,14 @@
                 text: "Load"
                 on_release: root.load(filechooser.path, filechooser.selection)
 
+<PopupBox>:
+    pop_up_text: _pop_up_text
+    size_hint: .5, .5
+    auto_dismiss: True
+    title: 'Status'
+
+    BoxLayout:
+        orientation: "vertical"
+        Label:
+            id: _pop_up_text
+            text: ''

@@ -8,13 +8,16 @@ from kivy.uix.slider import Slider
 from kivy.uix.popup import Popup
 from kivy.uix.progressbar import ProgressBar
 from kivy.app import App
-
+import threading
+from functools import partial
 from scipy import fftpack, io
 import numpy as np
 import os
 import math
 from image_widget import ImDisplay
 from matplotlib import cm
+
+#todo check if correct file is selected, if not display nice popup
 cmap = cm.gray(np.arange(256))
 cmap = cmap[:, 0:3]
 cmap = cmap.ravel()
@@ -59,6 +62,7 @@ class LoadDialog(FloatLayout):
     load = ObjectProperty(None)
     cancel = ObjectProperty(None)
 
+
 class SpecSlider(Slider):
     def on_touch_up(self, touch):
         if touch.grab_current is not self:
@@ -82,7 +86,6 @@ class MainWidget(Widget):
     savefile = ObjectProperty(None)
     text_input = ObjectProperty(None)
 
-
     def dismiss_popup(self):
         self._popup.dismiss()
 
@@ -97,24 +100,27 @@ class MainWidget(Widget):
         tmp = io.loadmat(file2open)
         ui = tmp['u']
         self.dismiss_popup()
-        self.ids.position_slider.disabled = False
-        self.ids.phase_button.disabled = False
-        self.ids.amplitude_button.disabled = False
-        self.propagate_all(ui)
-        self.update_image(self.ids.position_slider.value, self.ids.amplitude_button.state)
+        self.pb = ProgressBar(max=13, height=40)
+        self.popup = Popup(title='Calculating', content =self.pb, size_hint=(None, None), size=(400, 400), auto_dismiss=False)
+        self.popup.open()
+        mythread = threading.Thread(target=partial(self.propagate_all, ui))
+        mythread.start()
 
     def propagate_all(self, ui):
         size = list(ui.shape)
         size.append(1)
         self.up1 = np.empty(size)
-        pb = ProgressBar(max = 13)
-        popup = Popup(title='Working on file', content=pb)
         #popup.open()
         for i in range(-30, 31, 5):
             self.up1 = np.dstack((self.up1, propagate2d(ui, i, lam, n0, dx)))
             print('calculated: {}'.format(i))
-            pb.value += 1
+            self.pb.value += 1
         self.up1 = np.delete(self.up1, 0, axis=2)
+        self.ids.position_slider.disabled = False
+        self.ids.phase_button.disabled = False
+        self.ids.amplitude_button.disabled = False
+        self.update_image(self.ids.position_slider.value, self.ids.amplitude_button.state)
+        self.popup.dismiss()
 
     def update_image(self, value, state):
         i = z_vec.index(value)
