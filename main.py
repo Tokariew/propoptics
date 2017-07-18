@@ -1,4 +1,3 @@
-from kivy.app import App
 from kivy.uix.floatlayout import FloatLayout
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
@@ -14,10 +13,39 @@ import os
 import math
 from image_widget import ImDisplay
 from matplotlib import cm
-from kivy.config import Config
-Config.set('graphics', 'width', '800')
-Config.set('graphics', 'height', '600')
-Config.set('graphics','resizable',0)
+
+json = '''
+[
+  {
+    "desc": "Enter lambda of used light in micrometers",
+    "key": "lambda",
+    "section": "Optics",
+    "title": "lambda",
+    "type": "numeric"
+  },
+  {
+    "desc": "Enter the refractive index of medium",
+    "key": "n0",
+    "section": "Optics",
+    "title": "n0",
+    "type": "numeric"
+  },
+  {
+    "desc": "Enter the size of camera pixel in micrometers",
+    "key": "pixel_size",
+    "section": "Optics",
+    "title": "Pixel size",
+    "type": "numeric"
+  },
+  {
+    "desc": "enter magnification of optical system",
+    "key": "magnification",
+    "section": "Optics",
+    "title": "Magnification",
+    "type": "numeric"
+  }
+]
+'''
 
 # todo settings or something else to give lambde, n0 i dx, może zakres propagacji, kroki?
 # todo check if correct file is selected, if not display popup
@@ -119,6 +147,12 @@ class MainWidget(Widget):
         mythread.start()
 
     def propagate_all(self, ui):
+        app = App.get_running_app()
+        lam = float(app.config.getdefault('Optics', 'lambda', 0))
+        n0 = float(app.config.getdefault('Optics', 'n0', 0))
+        pixel = float(app.config.getdefault('Optics', 'pixel_size', 0))
+        magn = float(app.config.getdefault('Optics', 'magnification', 0))
+        dx = pixel / magn
         size = list(ui.shape)
         size.append(1)
         self.up1 = np.empty(size)
@@ -142,9 +176,17 @@ class MainWidget(Widget):
 
 
 class PropagateApp(App):
+    use_kivy_settings = False
+
     def build(self):
         propagate = MainWidget()
         return propagate
+
+    def build_config(self, config):
+        config.setdefaults('Optics', {'lambda': .6328, 'n0': 1.333, 'pixel_size': 3.45, 'magnification': 30.5})
+
+    def build_settings(self, settings):
+        settings.add_json_panel('Optics', self.config, data=json)
 
 
 Factory.register('PropagateApp', cls=PropagateApp)

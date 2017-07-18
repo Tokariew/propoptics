@@ -6,19 +6,31 @@
         size: Win.size
         id: mainbox
         orientation: 'vertical'
-        Button:
-            text: 'Load File'
-            size_hint_x: .35
-            size_hint_y: None
+        FloatLayout:
+            spacing: '8dp'
             height: '36dp'
-            pos_hint: {'center_x': 0.5, 'y': 0.5}
-            on_release: root.show_load()
+            size_hint_y: None
+
+            Button:
+                text: 'Load File'
+                size_hint_x: .35
+                size_hint_y: None
+                height: '36dp'
+                pos_hint: {'center_x': 0.25, 'y': 0}
+                on_release: root.show_load()
+
+            Button:
+                text: 'Settings (choose before load)'
+                size_hint_x: .35
+                size_hint_y: None
+                height: '36dp'
+                pos_hint: {'center_x': 0.75, 'y': 0}
+                on_release: app.open_settings()
 
         GridLayout:
             height: '36dp'
             spacing: '8dp'
             cols: 2
-            height: '36dp'
             size_hint_y: None
 
             Label:
@@ -100,3 +112,15 @@
             max: 13
             height: 40
             on_value: loading_label.text = '{:.2f}%'.format(loading_progress.value / loading_progress.max * 100)
+<SettingsPopup>:
+    id: setting_popup
+    title: 'Settings'
+    size_hint: (None, None)
+    size: Win.width / 2, Win.height / 2
+    GridLayout:
+        cols: 2
+        spacing: '8dp'
+        height: '36dp'
+        size_hint_y: None
+        Label:
+            text: ''
