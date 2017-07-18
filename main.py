@@ -1,10 +1,11 @@
 from kivy.uix.floatlayout import FloatLayout
-from kivy.factory import Factory
-from kivy.properties import ObjectProperty
 from kivy.uix.widget import Widget
 from kivy.uix.slider import Slider
 from kivy.uix.popup import Popup
+from kivy.uix.settings import SettingsWithSidebar
 from kivy.app import App
+from kivy.factory import Factory
+from kivy.properties import ObjectProperty
 import threading
 from functools import partial
 from scipy import fftpack, io
@@ -14,7 +15,6 @@ import math
 from image_widget import ImDisplay
 from matplotlib import cm
 from skimage.restoration import unwrap_phase
-from kivy.uix.settings import SettingsWithSidebar
 
 json = '''
 [
@@ -51,7 +51,7 @@ json = '''
 
 # todo settings for z_vec and steps??
 # todo check if correct file is selected, if not display popup
-# todo change filechooser to filebrowser from garden otherwise we can't access other devices
+
 cmap = cm.gray(np.arange(256))
 cmap = cmap[:, 0:3]
 cmap = cmap.ravel()
@@ -156,16 +156,15 @@ class MainWidget(Widget):
         self.up1 = np.empty(size)
         for i in range(-30, 31, 5):
             self.up1 = np.dstack((self.up1, propagate2d(ui, i, lam, n0, dx)))
-            print('calculated: {}'.format(i))
             self.pb.value += 1
         self.up1 = np.delete(self.up1, 0, axis=2)
-        self._content.title='Unwraping'
+        self._content.title = 'Unwraping'
         self.pb.value = 0
         self.phase = np.angle(self.up1)
         for i in range(13):
             # self.phase[:,:,i] = np.unwrap(np.unwrap(np.angle(self.up1[:,:,i]), axis=0), axis=1)
             # line above have some problems with unwraping it leave some artifacts
-            self.phase[:,:,i] = unwrap_phase(self.phase[:,:,i])
+            self.phase[:, :, i] = unwrap_phase(self.phase[:, :, i])
             self.pb.value += 1
         self.ids.position_slider.disabled = False
         self.ids.phase_button.disabled = False
@@ -181,7 +180,7 @@ class MainWidget(Widget):
         if state == 'down':
             self.wrong.create_im(self.up1[:, :, i], cmap)
         else:
-            self.wrong.create_im(self.phase[:,:,i], cmap)
+            self.wrong.create_im(self.phase[:, :, i], cmap)
 
 
 class PropagateApp(App):
@@ -204,6 +203,3 @@ Factory.register('LoadDialog', cls=LoadDialog)
 
 if __name__ == '__main__':
     PropagateApp().run()
-
-
-#https://www.youtube.com/watch?v=VBokjWj_cEA
