@@ -85,6 +85,7 @@
 			select_string: 'Select'
 			on_submit: root.load(self.selection[0])
 			on_canceled: root.cancel()
+			on_success: root.load(self.selection[0])
 
 <PopupBox>:
     id: loading_popup
