@@ -13,6 +13,7 @@ import os
 import math
 from image_widget import ImDisplay
 from matplotlib import cm
+from skimage.restoration import unwrap_phase
 
 json = '''
 [
@@ -47,7 +48,7 @@ json = '''
 ]
 '''
 
-# todo settings or something else to give lambde, n0 i dx, może zakres propagacji, kroki?
+# todo settings for z_vec and steps??
 # todo check if correct file is selected, if not display popup
 # todo change filechooser to filebrowser from garden otherwise we can't access other devices
 cmap = cm.gray(np.arange(256))
@@ -55,9 +56,6 @@ cmap = cmap[:, 0:3]
 cmap = cmap.ravel()
 cmap = (255 * cmap).astype(np.int32)
 img = np.random.rand(1024, 1024)
-lam = .6328
-n0 = 1.333
-dx = 3.45 / 30.5
 z_vec = list(range(-30, 31, 5))
 
 
@@ -161,18 +159,29 @@ class MainWidget(Widget):
             print('calculated: {}'.format(i))
             self.pb.value += 1
         self.up1 = np.delete(self.up1, 0, axis=2)
+        self._content.title='Unwraping'
+        self.pb.value = 0
+        self.phase = np.angle(self.up1)
+        for i in range(13):
+            # self.phase[:,:,i] = np.unwrap(np.unwrap(np.angle(self.up1[:,:,i]), axis=0), axis=1)
+            # line above have some problems with unwraping it leave some artifacts
+            self.phase[:,:,i] = unwrap_phase(self.phase[:,:,i])
+            self.pb.value += 1
         self.ids.position_slider.disabled = False
         self.ids.phase_button.disabled = False
         self._content.dismiss()
+        self.up1 = np.abs(self.up1)
+        self.phase = np.flipud(self.phase)
+        self.up1 = np.flipud(self.up1)
         self.update_image(self.ids.position_slider.value, self.ids.amplitude_button.state)
         self.ids.amplitude_button.disabled = False
 
     def update_image(self, value, state):
         i = z_vec.index(value)
         if state == 'down':
-            self.wrong.create_im(np.abs(self.up1[:, :, i]), cmap)
+            self.wrong.create_im(self.up1[:, :, i], cmap)
         else:
-            self.wrong.create_im(np.angle(self.up1[:, :, i]), cmap)
+            self.wrong.create_im(self.phase[:,:,i], cmap)
 
 
 class PropagateApp(App):
