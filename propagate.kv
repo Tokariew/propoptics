@@ -112,15 +112,3 @@
             max: 13
             height: 40
             on_value: loading_label.text = '{:.2f}%'.format(loading_progress.value / loading_progress.max * 100)
-<SettingsPopup>:
-    id: setting_popup
-    title: 'Settings'
-    size_hint: (None, None)
-    size: Win.width / 2, Win.height / 2
-    GridLayout:
-        cols: 2
-        spacing: '8dp'
-        height: '36dp'
-        size_hint_y: None
-        Label:
-            text: ''
