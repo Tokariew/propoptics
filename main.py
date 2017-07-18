@@ -14,6 +14,7 @@ import math
 from image_widget import ImDisplay
 from matplotlib import cm
 from skimage.restoration import unwrap_phase
+from kivy.uix.settings import SettingsWithSidebar
 
 json = '''
 [
@@ -127,7 +128,7 @@ class MainWidget(Widget):
     def show_load(self):
         content = LoadDialog(load=self.load, cancel=self.dismiss_popup)
         self._popup = Popup(title="Load file", content=content,
-                            size_hint=(0.9, 0.9))
+                            size_hint=(1, 1))
         self._popup.open()
 
     def show_loading(self):
@@ -135,8 +136,7 @@ class MainWidget(Widget):
         self._content.open()
         self.pb = self._content.ids.loading_progress
 
-    def load(self, path, filename):
-        file2open = os.path.join(path, filename[0])
+    def load(self, file2open):
         tmp = io.loadmat(file2open)
         ui = tmp['u']
         self.dismiss_popup()
@@ -189,6 +189,7 @@ class PropagateApp(App):
 
     def build(self):
         propagate = MainWidget()
+        self.settings_cls = SettingsWithSidebar
         return propagate
 
     def build_config(self, config):
