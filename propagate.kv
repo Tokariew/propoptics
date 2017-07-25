@@ -6,8 +6,8 @@
         size: Win.size
         id: mainbox
         orientation: 'vertical'
+        spacing: '4dp'
         FloatLayout:
-            spacing: '8dp'
             height: '36dp'
             size_hint_y: None
 
@@ -37,10 +37,6 @@
                 id: current_slider_value
                 text: '0'
 
-            #Label:
-            #    id: state_label
-            #    text: 'test'
-
             SpecSlider:
                 id: position_slider
                 min: -30
@@ -51,9 +47,6 @@
                 on_value: current_slider_value.text = str(position_slider.value)
 
         FloatLayout:
-            spacing: '8dp'
-            #cols: 2
-            #orientation: 'horizontal'
             height: '36dp'
             size_hint_y: None
             ToggleButton:
@@ -64,7 +57,6 @@
                 group: 'display'
                 disabled: True
                 on_release: amplitude_button.state = 'normal' if phase_button.state == 'down' else 'down'
-
             ToggleButton:
                 id: amplitude_button
                 size_hint_x: .35
@@ -75,6 +67,10 @@
                 disabled: True
                 on_release: phase_button.state = 'down' if amplitude_button.state == 'normal' else 'normal'
                 on_state: root.update_image(position_slider.value, amplitude_button.state)
+
+        Image:
+            id: imshow_image
+            source: 'blank.png'
 
 <LoadDialog>:
     BoxLayout:
@@ -103,3 +99,43 @@
             max: 13
             height: 40
             on_value: loading_label.text = '{:.2f}%'.format(loading_progress.value / loading_progress.max * 100)
+
+<SelectMatVariable>:
+    title: 'Select Variable'
+    auto_dismiss: False
+    size_hint: .8, .6
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: 3*self.height/4
+        Spinner:
+            id: mat_spinner
+            size_hint: None, None
+            pos_hint: {'center_x': 0.5}
+            height: '36dp'
+            width: '128dp'
+            text: root.values[0]
+            values: root.values
+            sync_height: True
+        Button:
+            text: 'Ok'
+            height: '36dp'
+            width: '128dp'
+            pos_hint: {'center_x': 0.5}
+            size_hint: None, None
+            on_release: root.dismiss()
+
+<WrongFileDialog>:
+    title: 'Wrong File'
+    size_hint: 1.0, 0.6
+    auto_dismiss: False
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            text: 'Unsupported file type. Supported file types are: matlab mat files and image files. Please choose again.'
+        Button:
+            text: 'Ok'
+            size_hint: None, None
+            height: '36dp'
+            width: '128dp'
+            pos_hint: {'center_x': 0.5}
+            on_release: root.reload()

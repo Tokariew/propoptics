@@ -1,20 +1,28 @@
+import matplotlib
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 from kivy.uix.slider import Slider
 from kivy.uix.popup import Popup
 from kivy.uix.settings import SettingsWithSidebar
 from kivy.app import App
+from kivy.graphics.texture import Texture
 from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 import threading
 from functools import partial
 from scipy import fftpack, io
 import numpy as np
-import os
 import math
-from image_widget import ImDisplay
-from matplotlib import cm
 from skimage.restoration import unwrap_phase
+from scipy.misc import imread
+
+matplotlib.use('Agg')
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+z_vec = list(range(-30, 31, 5))
 
 json = '''
 [
@@ -49,18 +57,25 @@ json = '''
 ]
 '''
 
+
+# could make just .json file to create settings.
+
 # todo settings for z_vec and steps??
 # todo check if correct file is selected, if not display popup
 
-cmap = cm.gray(np.arange(256))
-cmap = cmap[:, 0:3]
-cmap = cmap.ravel()
-cmap = (255 * cmap).astype(np.int32)
-img = np.random.rand(1024, 1024)
-z_vec = list(range(-30, 31, 5))
 
 
 def propagate2d(ui, z, lam, n0, dx):
+    """
+    Function used to propagate optic field to other location, before or after current position
+    :param ui: 2D complex array with registered optic field
+    :param z: float/int value, distance how far we want to propagate field, if negative, function will return field
+    before current position
+    :param lam: float with length of light in um
+    :param n0: float with refractive index of medium
+    :param dx: float with   pixel size divided by magnification of optic system
+    :return: uo, optic field at desire distance from current location
+    """
     k = 2 * math.pi / lam
     Ny, Nx = ui.shape
     dfx = 1 / Nx / dx
@@ -90,32 +105,59 @@ def propagate2d(ui, z, lam, n0, dx):
 
 
 class LoadDialog(FloatLayout):
+    """Simple class used to make popup with FileBrowser widget"""
     load = ObjectProperty(None)
     cancel = ObjectProperty(None)
 
 
 class PopupBox(Popup):
+    """Class to display popup when program is calculating optic field in other positions, and unwrapping phase"""
     pass
 
 
 class SpecSlider(Slider):
+    """Simple class to override default on_touch_up method of slider"""
+
     def on_touch_up(self, touch):
+        """
+        Override on_touch_up method of Slider class, otherwise is hard to make changes, only when we stop using slider,
+        and with default events/binds it's only possible with each change of value.
+        It handle event, and after that will call method to update image widget
+        """
         if touch.grab_current is not self:
             return
-        touch.ungrab(self)
+        touch.ungrab(self)  # without it, app will not respond to new touches
         app = App.get_running_app()
         root = app.root
-        ampli = root.ids.amplitude_button.state
-        root.update_image(self.value, ampli)
+        ampli = root.ids.amplitude_button.state  # status of toggle button
+        root.update_image(self.value, ampli)  # call method to update image
+
+
+class SelectMatVariable(Popup):
+    """
+    Class to display popup when loading .mat file with many variables
+    """
+    values = ObjectProperty(None)
+
+
+class WrongFileDialog(Popup):
+    """
+    Class to display popup when user try to open unsupported file. Appearance is defined in kv file
+    """
+
+    def reload(self):
+        """
+        It's called when user press ok button, on popup. It's closed this popup, and reload LoadDialog popup.
+        """
+        self.dismiss()
+        app = App.get_running_app()  # get instance of current app
+        root = app.root
+        root._popup.open()
 
 
 class MainWidget(Widget):
     def __init__(self, **kwargs):
         super(MainWidget, self).__init__()
-        self.boxloy = self.ids.mainbox.__self__
-        self.wrong = ImDisplay(size_hint=(1., .1,), height=600, width=600)
-        self.wrong.create_im(img, cmap)
-        self.boxloy.add_widget(self.wrong)
         self.up1 = []
 
     loadfile = ObjectProperty(None)
@@ -123,64 +165,132 @@ class MainWidget(Widget):
     text_input = ObjectProperty(None)
 
     def dismiss_popup(self):
+        """Method to close popup with filebrowser widget"""
         self._popup.dismiss()
 
     def show_load(self):
+        """
+        Create and open popup with filebrowser widget, and bind events of filebrowser widget with methods from this
+        class.
+        """
         content = LoadDialog(load=self.load, cancel=self.dismiss_popup)
         self._popup = Popup(title="Load file", content=content,
                             size_hint=(1, 1))
         self._popup.open()
 
     def show_loading(self):
+        """
+        Display popup when program is propagatic optic field, and unwrapping phase, user should now that program\
+        is working
+        """
         self._content = PopupBox()
         self._content.open()
         self.pb = self._content.ids.loading_progress
 
-    def load(self, file2open):
-        tmp = io.loadmat(file2open)
-        ui = tmp['u']
+    def mat_callback(self, instance):
+        """
+        called when user closed the popup in which he selected variable from matlab file. Load matlab file, load selected
+        variable and call prepare_data
+        """
+        ui = io.loadmat(self.file2open)
+        ui = ui[self._popup3.ids.mat_spinner.text]
         self.dismiss_popup()
         self.show_loading()
         mythread = threading.Thread(target=partial(self.propagate_all, ui))
         mythread.start()
 
+    def load(self, file2open):
+        if file2open[-4:].lower() == '.mat':
+            self.mat_structure = io.whosmat(file2open)
+            if len(self.mat_structure) == 1:
+                ui = io.loadmat(file2open)
+                ui = ui[self.mat_structure[0][0]]
+                self.dismiss_popup()
+                self.show_loading()
+                mythread = threading.Thread(target=partial(self.propagate_all, ui))
+                mythread.start()
+            if len(self.mat_structure) > 1:
+                self.variable_tuple = tuple(x[0] for x in self.mat_structure)
+                self._popup3 = SelectMatVariable(values=self.variable_tuple)
+                self._popup3.open()
+                self.file2open = file2open
+                self._popup3.bind(on_dismiss=self.mat_callback)
+        elif file2open[-4:].lower() == '.jpg' or file2open[-4:].lower() == '.bmp' or file2open[-4:].lower() == '.png':
+            ui = imread(file2open, flatten=1).astype(np.float32)
+            self.dismiss_popup()
+            self.show_loading()
+            mythread = threading.Thread(target=partial(self.propagate_all, ui))
+            mythread.start()
+        else:
+            self.dismiss_popup()
+            self._popup2 = WrongFileDialog()
+            self._popup2.open()
+
     def propagate_all(self, ui):
         app = App.get_running_app()
+        # now we will get set values in settings by user
         lam = float(app.config.getdefault('Optics', 'lambda', 0))
         n0 = float(app.config.getdefault('Optics', 'n0', 0))
         pixel = float(app.config.getdefault('Optics', 'pixel_size', 0))
         magn = float(app.config.getdefault('Optics', 'magnification', 0))
-        dx = pixel / magn
+        self.dx = pixel / magn
+        # create empty numpy array as 3d array, in which are stored propagated fields
         size = list(ui.shape)
         size.append(1)
         self.up1 = np.empty(size)
+        # in this for loop we stack in empty array values of propagated field and increase value of progress bar
         for i in range(-30, 31, 5):
-            self.up1 = np.dstack((self.up1, propagate2d(ui, i, lam, n0, dx)))
+            self.up1 = np.dstack((self.up1, propagate2d(ui, i, lam, n0, self.dx)))
             self.pb.value += 1
-        self.up1 = np.delete(self.up1, 0, axis=2)
-        self._content.title = 'Unwraping'
-        self.pb.value = 0
+        self.up1 = np.delete(self.up1, 0, axis=2)  # delete empty slice array from array with fields
+        # now in array each 2d slice is corresponded to optic field in one place
+        self._content.title = 'Unwraping'  # change name of popup dialog
+        self.pb.value = 0  # reset value of progress bar
+        # unwrap phase for each slice in 3d array
         self.phase = np.angle(self.up1)
         for i in range(13):
-            # self.phase[:,:,i] = np.unwrap(np.unwrap(np.angle(self.up1[:,:,i]), axis=0), axis=1)
-            # line above have some problems with unwraping it leave some artifacts
             self.phase[:, :, i] = unwrap_phase(self.phase[:, :, i])
             self.pb.value += 1
         self.ids.position_slider.disabled = False
-        self.ids.phase_button.disabled = False
-        self._content.dismiss()
-        self.up1 = np.abs(self.up1)
-        self.phase = np.flipud(self.phase)
-        self.up1 = np.flipud(self.up1)
+        self.ids.phase_button.disabled = False  # unlock slider if this is first read file
+        self.up1 = np.abs(self.up1)  # now we have two 3d arrays, one with amplitude and other with phase
+        self.ids.amplitude_button.disabled = False  # unlock toogle buttons
         self.update_image(self.ids.position_slider.value, self.ids.amplitude_button.state)
-        self.ids.amplitude_button.disabled = False
+        self._content.dismiss()
 
     def update_image(self, value, state):
         i = z_vec.index(value)
+        plt.close('all')  # without it we will use just eat memory like crazy
+        fig = plt.gcf()
+        fig.set_dpi(400)
+
         if state == 'down':
-            self.wrong.create_im(self.up1[:, :, i], cmap)
+            plt.imshow(self.up1[:, :, i], cmap='gray')
         else:
-            self.wrong.create_im(self.phase[:, :, i], cmap)
+            plt.imshow(self.phase[:, :, i], cmap='gray')
+        ax = plt.gca()
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(cax=cax)
+        ticks_x = ticker.FuncFormatter(lambda x, pos: '{:.2f}'.format(x * self.dx).rstrip('0').rstrip('.'))
+        ax.xaxis.set_major_formatter(ticks_x)
+        ticks_y = ticker.FuncFormatter(lambda x, pos: '{:.2f}'.format(x * self.dx).rstrip('0').rstrip('.'))
+        ax.yaxis.set_major_formatter(ticks_y)
+        ax.set_xlabel('micrometers')
+        ax.xaxis.tick_top()
+        ax.xaxis.set_label_position('top')
+        fig.tight_layout()
+        canvas = FigureCanvasAgg(fig)
+        canvas.draw()
+        s = canvas.tostring_rgb()
+        x, y = fig.get_size_inches() * fig.dpi
+        self.make_texture(s, x, y)
+
+    def make_texture(self, s, x, y):
+        tex = Texture.create(size=(x, y), colorfmt='rgb')
+        tex.blit_buffer(s, bufferfmt="ubyte", colorfmt="rgb")
+        tex.flip_vertical()
+        self.ids.imshow_image.texture = tex
 
 
 class PropagateApp(App):
