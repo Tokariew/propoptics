@@ -17,7 +17,7 @@
                 size_hint_y: None
                 height: '36dp'
                 pos_hint: {'center_x': 0.25, 'y': 0}
-                on_release: root.show_load()
+                on_release: root.show_load()  # after we stop pressing button it will call show_load from MainWidget class
 
             Button:
                 text: 'Settings (choose before load)'
@@ -25,7 +25,7 @@
                 size_hint_y: None
                 height: '36dp'
                 pos_hint: {'center_x': 0.75, 'y': 0}
-                on_release: app.open_settings()
+                on_release: app.open_settings()  # it will open settings screen, settings can be accessed with F1 button on PC
 
         GridLayout:
             height: '36dp'
@@ -35,7 +35,7 @@
 
             Label:
                 id: current_slider_value
-                text: '0'
+                text: 'Show propagated field at {:.0f}'.format(position_slider.value)
 
             SpecSlider:
                 id: position_slider
@@ -44,7 +44,6 @@
                 orientation: 'horizontal'
                 step: 5
                 disabled: True
-                on_value: current_slider_value.text = str(position_slider.value)
 
         FloatLayout:
             height: '36dp'
@@ -54,9 +53,10 @@
                 size_hint_x: .35
                 pos_hint: {'center_x': 0.25, 'top': 1}
                 text: 'Phase'
-                group: 'display'
+                group: 'display'  # both toggle button on the same group, so they can't be both down at the same time
                 disabled: True
                 on_release: amplitude_button.state = 'normal' if phase_button.state == 'down' else 'down'
+                # little trick to change status of another button in the group, when you unclick one of them
             ToggleButton:
                 id: amplitude_button
                 size_hint_x: .35
@@ -66,29 +66,31 @@
                 state: 'down'
                 disabled: True
                 on_release: phase_button.state = 'down' if amplitude_button.state == 'normal' else 'normal'
+                # little trick to change status of another button in the group, when you unclick one of them
                 on_state: root.update_image(position_slider.value, amplitude_button.state)
+                # when we change status of this button, app update image.
 
         Image:
             id: imshow_image
-            source: 'blank.png'
+            source: 'blank.png'  # at the begging it will display empty image
 
 <LoadDialog>:
-    BoxLayout:
-        size: root.size
-        pos: root.pos
-        orientation: "vertical"
-		FileBrowser:
-			select_string: 'Select'
-			on_submit: root.load(self.selection[0])
-			on_canceled: root.cancel()
-			on_success: root.load(self.selection[0])
+    size: root.size
+    pos: root.pos
+    orientation: "vertical"
+    FileBrowser:
+        #widget to select file
+        select_string: 'Select'
+        on_submit: root.load(self.selection[0])  # called when two-click on file
+        on_canceled: root.cancel()
+        on_success: root.load(self.selection[0])  # called when pressed select button
 
 <PopupBox>:
     id: loading_popup
     title: 'Calculating'
-    size_hint: (None, None)
+    size_hint: None, None
     size: Win.width / 2, Win.height / 2
-    auto_dismiss: False
+    auto_dismiss: False  # we don't want user to click somewhere not in dialog and closed dialog
     BoxLayout:
         orientation: 'vertical'
         Label:
@@ -98,15 +100,17 @@
             id: loading_progress
             max: 13
             height: 40
-            on_value: loading_label.text = '{:.2f}%'.format(loading_progress.value / loading_progress.max * 100)
+            on_value: loading_label.text = '{:.1%}'.format(loading_progress.value / loading_progress.max)
+            # when value is change we will update text to display progress on pending operation
 
 <SelectMatVariable>:
     title: 'Select Variable'
     auto_dismiss: False
-    size_hint: .8, .6
+    size_hint: None, None
+    size: Win.width / 2, Win.height / 2
     BoxLayout:
         orientation: 'vertical'
-        spacing: 3*self.height/4
+        spacing: 3*self.height/5
         Spinner:
             id: mat_spinner
             size_hint: None, None
@@ -115,22 +119,26 @@
             width: '128dp'
             text: root.values[0]
             values: root.values
-            sync_height: True
+            sync_height: True  # values from which we selected have the same height as spinner
         Button:
             text: 'Ok'
             height: '36dp'
             width: '128dp'
             pos_hint: {'center_x': 0.5}
             size_hint: None, None
-            on_release: root.dismiss()
+            on_release: root.dismiss()  # just call normal method of popup class
 
 <WrongFileDialog>:
     title: 'Wrong File'
-    size_hint: 1.0, 0.6
+    size_hint: None, None
+    size: Win.width / 2, Win.height / 2
     auto_dismiss: False
     BoxLayout:
         orientation: 'vertical'
         Label:
+            halign: 'center'
+            valign: 'middle'
+            text_size: self.width, None  # otherwise text can display outside of popup
             text: 'Unsupported file type. Supported file types are: matlab mat files and image files. Please choose again.'
         Button:
             text: 'Ok'
@@ -138,4 +146,4 @@
             height: '36dp'
             width: '128dp'
             pos_hint: {'center_x': 0.5}
-            on_release: root.reload()
+            on_release: root.reload()  # call reload method of class

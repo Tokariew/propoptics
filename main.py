@@ -1,28 +1,30 @@
 import matplotlib
-from kivy.uix.floatlayout import FloatLayout
+import threading
+import numpy as np
+import math
+from kivy.app import App
+from kivy.properties import ObjectProperty
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.widget import Widget
 from kivy.uix.slider import Slider
 from kivy.uix.popup import Popup
 from kivy.uix.settings import SettingsWithSidebar
-from kivy.app import App
 from kivy.graphics.texture import Texture
-from kivy.factory import Factory
-from kivy.properties import ObjectProperty
-import threading
 from functools import partial
 from scipy import fftpack, io
-import numpy as np
-import math
 from skimage.restoration import unwrap_phase
 from scipy.misc import imread
-
-matplotlib.use('Agg')
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+matplotlib.use('Agg')
+# matplotlib.use should be called before importing any backend or pyplot
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+import matplotlib.pyplot as plt
+
 z_vec = list(range(-30, 31, 5))
+
+# todo settings for z_vec and steps??
 
 json = '''
 [
@@ -59,10 +61,6 @@ json = '''
 
 
 # could make just .json file to create settings.
-
-# todo settings for z_vec and steps??
-# todo check if correct file is selected, if not display popup
-
 
 
 def propagate2d(ui, z, lam, n0, dx):
@@ -104,7 +102,7 @@ def propagate2d(ui, z, lam, n0, dx):
     return uo
 
 
-class LoadDialog(FloatLayout):
+class LoadDialog(BoxLayout):
     """Simple class used to make popup with FileBrowser widget"""
     load = ObjectProperty(None)
     cancel = ObjectProperty(None)
@@ -134,9 +132,7 @@ class SpecSlider(Slider):
 
 
 class SelectMatVariable(Popup):
-    """
-    Class to display popup when loading .mat file with many variables
-    """
+    """Class to display popup when loading .mat file with many variables"""
     values = ObjectProperty(None)
 
 
@@ -152,54 +148,61 @@ class WrongFileDialog(Popup):
         self.dismiss()
         app = App.get_running_app()  # get instance of current app
         root = app.root
-        root._popup.open()
+        root.popup.open()
 
 
 class MainWidget(Widget):
-    def __init__(self, **kwargs):
+    def __init__(self):
         super(MainWidget, self).__init__()
         self.up1 = []
-
-    loadfile = ObjectProperty(None)
-    savefile = ObjectProperty(None)
-    text_input = ObjectProperty(None)
+        self.phase = []
+        self.content = LoadDialog(load=self.load, cancel=self.dismiss_popup)
+        self.popup = Popup(title="Load file", content=self.content, size_hint=(1, 1))
+        self.variable_tuple = ''
+        self.popup2 = WrongFileDialog()
+        self.popup3 = ''
+        self.popup4 = PopupBox()
+        self.pb = self.popup4.ids.loading_progress
+        self.mat_structure = ''
+        self.variable_tuple = ''
+        self.file2open = ''
+        self.dx = 0
 
     def dismiss_popup(self):
         """Method to close popup with filebrowser widget"""
-        self._popup.dismiss()
+        self.popup.dismiss()
 
     def show_load(self):
-        """
-        Create and open popup with filebrowser widget, and bind events of filebrowser widget with methods from this
-        class.
-        """
-        content = LoadDialog(load=self.load, cancel=self.dismiss_popup)
-        self._popup = Popup(title="Load file", content=content,
-                            size_hint=(1, 1))
-        self._popup.open()
+        """Ppen popup with filebrowser widget, and bind events of filebrowser widget with methods from this class."""
+        self.popup.open()
 
     def show_loading(self):
         """
         Display popup when program is propagatic optic field, and unwrapping phase, user should now that program\
         is working
         """
-        self._content = PopupBox()
-        self._content.open()
-        self.pb = self._content.ids.loading_progress
+        self.popup4.open()
 
     def mat_callback(self, instance):
         """
-        called when user closed the popup in which he selected variable from matlab file. Load matlab file, load selected
-        variable and call prepare_data
+        called when user closed the popup in which he selected variable from matlab file. Load matlab file, load
+        selected variable and call prepare_data
         """
         ui = io.loadmat(self.file2open)
-        ui = ui[self._popup3.ids.mat_spinner.text]
+        ui = ui[self.popup3.ids.mat_spinner.text]
         self.dismiss_popup()
         self.show_loading()
         mythread = threading.Thread(target=partial(self.propagate_all, ui))
         mythread.start()
 
     def load(self, file2open):
+        """
+        Function to check if selected file is supported, and open it or call method to choose variable in multiple
+        variables files.
+        :param file2open: string with path for app to open
+        """
+
+        # stupid approach based on file extension.
         if file2open[-4:].lower() == '.mat':
             self.mat_structure = io.whosmat(file2open)
             if len(self.mat_structure) == 1:
@@ -209,24 +212,32 @@ class MainWidget(Widget):
                 self.show_loading()
                 mythread = threading.Thread(target=partial(self.propagate_all, ui))
                 mythread.start()
+                # open .mat file with single variable
             if len(self.mat_structure) > 1:
                 self.variable_tuple = tuple(x[0] for x in self.mat_structure)
-                self._popup3 = SelectMatVariable(values=self.variable_tuple)
-                self._popup3.open()
+                self.popup3 = SelectMatVariable(values=self.variable_tuple)
+                self.popup3.open()
                 self.file2open = file2open
-                self._popup3.bind(on_dismiss=self.mat_callback)
+                self.popup3.bind(on_dismiss=self.mat_callback)
+                # display popup to select variable from multi variable .mat file
         elif file2open[-4:].lower() == '.jpg' or file2open[-4:].lower() == '.bmp' or file2open[-4:].lower() == '.png':
             ui = imread(file2open, flatten=1).astype(np.float32)
             self.dismiss_popup()
             self.show_loading()
             mythread = threading.Thread(target=partial(self.propagate_all, ui))
             mythread.start()
+            # open image and treat it as optic field. don't ask why.
         else:
             self.dismiss_popup()
-            self._popup2 = WrongFileDialog()
-            self._popup2.open()
+            self.popup2.open()
+            # close file browser widget and open popup with information that selected file is not supported.
 
     def propagate_all(self, ui):
+        """
+        It propagate optic field in some range (-30, 30) with 5 as step
+        :param ui: numpy 2d array with optic field
+        :return:
+        """
         app = App.get_running_app()
         # now we will get set values in settings by user
         lam = float(app.config.getdefault('Optics', 'lambda', 0))
@@ -234,52 +245,75 @@ class MainWidget(Widget):
         pixel = float(app.config.getdefault('Optics', 'pixel_size', 0))
         magn = float(app.config.getdefault('Optics', 'magnification', 0))
         self.dx = pixel / magn
+
         # create empty numpy array as 3d array, in which are stored propagated fields
         size = list(ui.shape)
         size.append(1)
         self.up1 = np.empty(size)
+
         # in this for loop we stack in empty array values of propagated field and increase value of progress bar
+        self.popup4.title = 'Calculating'  # make sure that after first loading we still have proper title
+        self.pb.value = 0  # and proper starting value
         for i in range(-30, 31, 5):
             self.up1 = np.dstack((self.up1, propagate2d(ui, i, lam, n0, self.dx)))
             self.pb.value += 1
         self.up1 = np.delete(self.up1, 0, axis=2)  # delete empty slice array from array with fields
+
         # now in array each 2d slice is corresponded to optic field in one place
-        self._content.title = 'Unwraping'  # change name of popup dialog
+        self.popup4.title = 'Unwraping'  # change name of popup dialog
         self.pb.value = 0  # reset value of progress bar
-        # unwrap phase for each slice in 3d array
         self.phase = np.angle(self.up1)
+        # unwrap phase for each slice in 3d array
         for i in range(13):
             self.phase[:, :, i] = unwrap_phase(self.phase[:, :, i])
             self.pb.value += 1
+
         self.ids.position_slider.disabled = False
         self.ids.phase_button.disabled = False  # unlock slider if this is first read file
         self.up1 = np.abs(self.up1)  # now we have two 3d arrays, one with amplitude and other with phase
         self.ids.amplitude_button.disabled = False  # unlock toogle buttons
         self.update_image(self.ids.position_slider.value, self.ids.amplitude_button.state)
-        self._content.dismiss()
+        # above line don't update image, it display it as black, and i don't know why
+        self.ids.position_slider.disabled = False
+        self.ids.phase_button.disabled = False  # unlock slider if this is first read file
+        self.up1 = np.abs(self.up1)  # now we have two 3d arrays, one with amplitude and other with phase
+        self.ids.amplitude_button.disabled = False  # unlock toogle buttons
+        self.popup4.dismiss()
 
     def update_image(self, value, state):
+        """
+        Prepare imshow plot. After creating it, call make_texture method to update texture of imshow_image
+        :param value: value of position_slider,
+        :param state: state of one of toggle buttons on app, based on it status its plotting amplitude or phase
+        """
         i = z_vec.index(value)
-        plt.close('all')  # without it we will use just eat memory like crazy
+        plt.close('all')  # without it, we will  just eat memory like crazy
         fig = plt.gcf()
-        fig.set_dpi(400)
+        fig.set_dpi(400)  # plot will have 3200x2400 resolution
 
         if state == 'down':
             plt.imshow(self.up1[:, :, i], cmap='gray')
         else:
             plt.imshow(self.phase[:, :, i], cmap='gray')
+
+        # make colorbar similar in size as height of imshow plot
         ax = plt.gca()
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         plt.colorbar(cax=cax)
+
+        # scale x and y axis based on pixel size of camera and magnification of optic system
         ticks_x = ticker.FuncFormatter(lambda x, pos: '{:.2f}'.format(x * self.dx).rstrip('0').rstrip('.'))
         ax.xaxis.set_major_formatter(ticks_x)
         ticks_y = ticker.FuncFormatter(lambda x, pos: '{:.2f}'.format(x * self.dx).rstrip('0').rstrip('.'))
         ax.yaxis.set_major_formatter(ticks_y)
+
+        # move x axis on top
         ax.set_xlabel('micrometers')
         ax.xaxis.tick_top()
         ax.xaxis.set_label_position('top')
-        fig.tight_layout()
+
+        fig.tight_layout()  # less margin around figure and between imshow and colorbar
         canvas = FigureCanvasAgg(fig)
         canvas.draw()
         s = canvas.tostring_rgb()
@@ -287,29 +321,39 @@ class MainWidget(Widget):
         self.make_texture(s, x, y)
 
     def make_texture(self, s, x, y):
-        tex = Texture.create(size=(x, y), colorfmt='rgb')
-        tex.blit_buffer(s, bufferfmt="ubyte", colorfmt="rgb")
-        tex.flip_vertical()
+        """
+        Function to update texture of imshow_image
+        :param s: string with colors of created canvas
+        :param x: width of canvas
+        :param y: height of canvas
+        """
+        tex = Texture.create(size=(x, y), colorfmt='rgb')  # create texture of proper size, and color format
+        tex.blit_buffer(s, bufferfmt="ubyte", colorfmt="rgb")  # transfer string with color to texture
+        tex.flip_vertical()  # data is upside down after blit_buffer
         self.ids.imshow_image.texture = tex
 
 
 class PropagateApp(App):
-    use_kivy_settings = False
+    """Main class of program, used to make settings pannel"""
+    use_kivy_settings = False  # we don't want to see default kivy settings, don't need it
 
     def build(self):
         propagate = MainWidget()
-        self.settings_cls = SettingsWithSidebar
+        self.settings_cls = SettingsWithSidebar  # set settings class, used to change appearance of setting screen
         return propagate
 
     def build_config(self, config):
+        """Set default option for settings"""
         config.setdefaults('Optics', {'lambda': .6328, 'n0': 1.333, 'pixel_size': 3.45, 'magnification': 30.5})
 
     def build_settings(self, settings):
+        """Add settings panel to settings screen, based on json"""
         settings.add_json_panel('Optics', self.config, data=json)
 
 
+"""
 Factory.register('PropagateApp', cls=PropagateApp)
 Factory.register('LoadDialog', cls=LoadDialog)
-
+"""
 if __name__ == '__main__':
     PropagateApp().run()
