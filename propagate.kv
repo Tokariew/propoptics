@@ -17,7 +17,7 @@
                 size_hint_y: None
                 height: '36dp'
                 pos_hint: {'center_x': 0.25, 'y': 0}
-                on_release: root.show_load()  # after we stop pressing button it will call show_load from MainWidget class
+                on_release: root.popup.open()  # after we stop pressing button it will call show_load from MainWidget class
 
             Button:
                 text: 'Settings (choose before load)'
@@ -75,14 +75,14 @@
             source: 'blank.png'  # at the begging it will display empty image
 
 <LoadDialog>:
-    size: root.size
+    title: 'Load File'
+    size_hint: 1, 1
     pos: root.pos
-    orientation: "vertical"
     FileBrowser:
         #widget to select file
         select_string: 'Select'
         on_submit: root.load(self.selection[0])  # called when two-click on file
-        on_canceled: root.cancel()
+        on_canceled: root.dismiss()
         on_success: root.load(self.selection[0])  # called when pressed select button
 
 <PopupBox>:
